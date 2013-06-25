@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>release-defect-trend</title>
+
+    <script type="text/javascript" src="https://rally1.rallydev.com/apps/2.0rc1/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function () {
+Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    items: [
+    {
+        xtype: 'container',
+        itemId: 'releaseDropDown',
+        columnWidth: 1
+    }
+    ,
+    {
+        xtype: 'container',
+        itemId: 'grid',
+        columnWidth: 1
+    }
+
+    ],
+
+    launch: function() {
+        this.down("#releaseDropDown").add( {
+            xtype: 'rallyreleasecombobox',
+             listeners: {
+                select: this._onReleaseSelect,
+	            scope: this
+	        }
+        });
+    }
+});
+
+            
+            Rally.launchApp('CustomApp', {
+                name:"release-defect-trend",
+                parentRepos:""
+            });
+
+        });
+    </script>
+
+
+
+
+    <style type="text/css">
+.app {
+     /* Add app styles here */
+}
+
+    </style>
+
+</head>
+<body></body>
+</html>

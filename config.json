@@ -1,0 +1,16 @@
+{
+    "name": "release-defect-trend",
+    "className": "CustomApp",
+    "server": "https://rally1.rallydev.com",
+    "sdk": "2.0rc1",
+    "remote_javascript": [
+    ],
+    "javascript": [
+        "src/App.js"
+    ],
+    "remote_css": [
+    ],
+    "css": [
+        "styles/app.css"
+    ]
+}

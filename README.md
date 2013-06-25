@@ -1,4 +1,9 @@
 release-defect-trend
-====================
+=========================
 
-Uses Rally Lookback API to create a release defect trend
+## Overview
+
+
+## License
+
+AppTemplate is released under the MIT license.  See the file [LICENSE](https://raw.github.com/RallyApps/AppTemplate/master/LICENSE) for the full text.

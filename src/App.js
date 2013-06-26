@@ -28,19 +28,20 @@ Ext.define('CustomApp', {
         this.gRelease = null;
     },
     _onReleaseSelect : function() {
-        var value =  this.down('#releaseSelector').getRecord().data;
-        this.gRelease = value;
-    	console.log("selected release record data",value);
+        
+        var value =  this.down('#releaseSelector').getRecord();
+        this.gRelease = value.data;
+        console.log("selected release record data",value.raw);
         
         // get all releases in scope
         Ext.create('Rally.data.WsapiDataStore', {
             model: "Release",
             autoLoad : true,
-            fetch: ["ObjectID","Name"],
+            fetch: ["ObjectID","Name","ReleaseStartDate","ReleaseDate"],
             filters: [
                 {
                     property: 'Name',
-                    value: value.Name
+                    value: value.data.Name
                 }
             ],
             listeners: {
@@ -83,7 +84,12 @@ Ext.define('CustomApp', {
     },
     
     _onReleaseSnapShotData : function(store,data,success) {
-        console.log("snapshot data",data);        
+        
+        var lumenize = window.parent.Rally.data.lookback.Lumenize;
+        
+        console.log("lumenize",lumenize);
+        
+        console.log("snapshot data",_.map(data,function(d){return d.data}));        
         
         var closedValues = ['Closed']
         
@@ -113,19 +119,29 @@ Ext.define('CustomApp', {
           deriveFieldsOnInput: deriveFieldsOnInput,
           metrics: metrics,
           summaryMetricsConfig: summaryMetricsConfig,
-          deriveFieldsAfterSummary: deriveFieldsAfterSummary,
+          deriveFieldsAfterSummary: [],
           granularity: lumenize.Time.DAY,
           tz: 'America/Chicago',
           holidays: holidays,
           workDays: 'Monday,Tuesday,Wednesday,Thursday,Friday'
         };
-        
-        calculator = new TimeSeriesCalculator(config);
-        
+
         // get the saved release
         console.log("Saved Release",this.gRelease);
-        //calculator.addSnapshots(data, startOnISOString, upToDateISOString)
 
-
+        console.log(this.gRelease.ReleaseStartDate, this.gRelease.ReleaseDate);
+        startOnISOString = new lumenize.Time(this.gRelease.ReleaseStartDate).getISOStringInTZ(config.tz)
+        upToDateISOString = new lumenize.Time(this.gRelease.ReleaseDate).getISOStringInTZ(config.tz)
+        console.log(startOnISOString, upToDateISOString);
+        
+        calculator = new Rally.data.lookback.Lumenize.TimeSeriesCalculator(config);
+        calculator.addSnapshots(data, startOnISOString, upToDateISOString);
+        
+    
+        var keys = ['label', 'DefectOpenCount'];
+        var csv = lumenize.arrayOfMaps_To_CSVStyleArray(calculator.getResults().seriesData, keys);
+        
+        console.log(csv.slice(1))
+        
     }
 });

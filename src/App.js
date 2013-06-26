@@ -37,7 +37,7 @@ Ext.define('CustomApp', {
         Ext.create('Rally.data.WsapiDataStore', {
             model: "Release",
             autoLoad : true,
-            fetch: ["ObjectID","Name","ReleaseStartDate","ReleaseDate"],
+            fetch: ["ObjectID","Name","ReleaseStartDate","ReleaseDate","Project"],
             filters: [
                 {
                     property: 'Name',
@@ -68,6 +68,7 @@ Ext.define('CustomApp', {
                 scope : this
             },
             fetch: ['ObjectID','Name', 'State', '_ValidFrom','_ValidTo'],
+            hydrate: ['State'],
             filters: [
                 {
                     property: '_TypeHierarchy',
@@ -86,19 +87,21 @@ Ext.define('CustomApp', {
     _onReleaseSnapShotData : function(store,data,success) {
         
         var lumenize = window.parent.Rally.data.lookback.Lumenize;
-        
-        console.log("lumenize",lumenize);
-        
-        console.log("snapshot data",_.map(data,function(d){return d.data}));        
-        
-        var closedValues = ['Closed']
+        var snapShotData = _.map(data,function(d){return d.data});        
+        console.log("snapShotData",snapShotData);
+
+        var openValues = ['Submitted','Open'];
+        var closedValues = ['Closed','Rejected','Duplicated'];
+        var verifiedValues = ['Verified'];
         
         var holidays = [
             {year: 2014, month: 1, day: 1}  // Made up holiday to test knockout
         ];
         
         var metrics = [
-            {as: 'DefectOpenCount', f: 'count', filterField: 'State', filterValues: closedValues}
+            {as: 'DefectOpenCount',     f: 'filteredCount', filterField: 'State', filterValues: openValues},
+            {as: 'DefectClosedCount',   f: 'filteredCount', filterField: 'State', filterValues: closedValues},
+            {as: 'DefectVerifiedCount', f: 'filteredCount', filterField: 'State', filterValues: verifiedValues},
         ];
         
         var summaryMetricsConfig = [
@@ -125,23 +128,23 @@ Ext.define('CustomApp', {
           holidays: holidays,
           workDays: 'Monday,Tuesday,Wednesday,Thursday,Friday'
         };
-
-        // get the saved release
-        console.log("Saved Release",this.gRelease);
-
-        console.log(this.gRelease.ReleaseStartDate, this.gRelease.ReleaseDate);
-        startOnISOString = new lumenize.Time(this.gRelease.ReleaseStartDate).getISOStringInTZ(config.tz)
-        upToDateISOString = new lumenize.Time(this.gRelease.ReleaseDate).getISOStringInTZ(config.tz)
-        console.log(startOnISOString, upToDateISOString);
+        
+        // release start and end dates
+        var startOnISOString = new lumenize.Time(this.gRelease.ReleaseStartDate).getISOStringInTZ(config.tz)
+        var upToDateISOString = new lumenize.Time(this.gRelease.ReleaseDate).getISOStringInTZ(config.tz)
         
         calculator = new Rally.data.lookback.Lumenize.TimeSeriesCalculator(config);
-        calculator.addSnapshots(data, startOnISOString, upToDateISOString);
-        
+        calculator.addSnapshots(snapShotData, startOnISOString, upToDateISOString);
     
-        var keys = ['label', 'DefectOpenCount'];
+        var keys = ['label', 'DefectOpenCount','DefectClosedCount','DefectVerifiedCount'];
         var csv = lumenize.arrayOfMaps_To_CSVStyleArray(calculator.getResults().seriesData, keys);
+        console.log("csv",csv);
         
-        console.log(csv.slice(1))
+        console.log(calculator.getResults().seriesData);
+        var hcConfig = [{ name: "label" }, { name : "DefectOpenCount" }, { name : "DefectClosedCount"},{name:"DefectVerifiedCount"}];
+        
+        var hc = lumenize.arrayOfMaps_To_HighChartsSeries(calculator.getResults().seriesData, hcConfig);
+        console.log("hc",hc);
         
     }
 });

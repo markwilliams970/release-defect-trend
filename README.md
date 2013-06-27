@@ -2,7 +2,10 @@ release-defect-trend
 =========================
 
 ## Overview
+Shows a trend of defect count for a selected release.
 
+Demonstrates how to use the TimeSeriesCalculator to define series categories eg.
+Count of open defects, count of closed defects, count of verified defects.
 
 ## License
 

@@ -5,12 +5,10 @@
 
     <script type="text/javascript" src="/apps/2.0rc1/sdk.js"></script>
 
-
-
     <script type="text/javascript">
         Rally.onReady(function () {
-Ext.define('CustomApp', {
-    extend: 'Rally.app.App',
+            Ext.define('CustomApp', {
+                extend: 'Rally.app.App',
     componentCls: 'app',
     items: [
     {
@@ -21,7 +19,7 @@ Ext.define('CustomApp', {
     ,
     {
         xtype: 'container',
-        itemId: 'grid',
+        itemId: 'chart1',
         columnWidth: 1
     }
 
@@ -39,19 +37,20 @@ Ext.define('CustomApp', {
         this.gRelease = null;
     },
     _onReleaseSelect : function() {
-        var value =  this.down('#releaseSelector').getRecord().data;
-        this.gRelease = value;
-    	console.log("selected release record data",value);
+        
+        var value =  this.down('#releaseSelector').getRecord();
+        this.gRelease = value.data;
+        console.log("selected release record data",value.raw);
         
         // get all releases in scope
         Ext.create('Rally.data.WsapiDataStore', {
             model: "Release",
             autoLoad : true,
-            fetch: ["ObjectID","Name"],
+            fetch: ["ObjectID","Name","ReleaseStartDate","ReleaseDate","Project"],
             filters: [
                 {
                     property: 'Name',
-                    value: value.Name
+                    value: value.data.Name
                 }
             ],
             listeners: {
@@ -78,6 +77,7 @@ Ext.define('CustomApp', {
                 scope : this
             },
             fetch: ['ObjectID','Name', 'State', '_ValidFrom','_ValidTo'],
+            hydrate: ['State'],
             filters: [
                 {
                     property: '_TypeHierarchy',
@@ -95,17 +95,22 @@ Ext.define('CustomApp', {
     
     _onReleaseSnapShotData : function(store,data,success) {
         
-        //var lumenize = require('../') {TimeSeriesCalculator, Time} = lumenize
-        console.log("snapshot data",data);        
-        
-        var closedValues = ['Closed']
+        var lumenize = window.parent.Rally.data.lookback.Lumenize;
+        var snapShotData = _.map(data,function(d){return d.data});        
+        console.log("snapShotData",snapShotData);
+
+        var openValues = ['Submitted','Open'];
+        var closedValues = ['Closed','Rejected','Duplicated'];
+        var verifiedValues = ['Verified'];
         
         var holidays = [
             {year: 2014, month: 1, day: 1}  // Made up holiday to test knockout
         ];
         
         var metrics = [
-            {as: 'DefectOpenCount', f: 'count', filterField: 'State', filterValues: closedValues}
+            {as: 'DefectOpenCount',     f: 'filteredCount', filterField: 'State', filterValues: openValues},
+            {as: 'DefectClosedCount',   f: 'filteredCount', filterField: 'State', filterValues: closedValues},
+            {as: 'DefectVerifiedCount', f: 'filteredCount', filterField: 'State', filterValues: verifiedValues},
         ];
         
         var summaryMetricsConfig = [
@@ -133,14 +138,76 @@ Ext.define('CustomApp', {
           workDays: 'Monday,Tuesday,Wednesday,Thursday,Friday'
         };
         
-        calculator = new TimeSeriesCalculator(config);
+        // release start and end dates
+        var startOnISOString = new lumenize.Time(this.gRelease.ReleaseStartDate).getISOStringInTZ(config.tz)
+        var upToDateISOString = new lumenize.Time(this.gRelease.ReleaseDate).getISOStringInTZ(config.tz)
         
-        // get the saved release
-        console.log("Saved Release",this.gRelease);
-        //calculator.addSnapshots(data, startOnISOString, upToDateISOString)
-
-
-    }
+        calculator = new Rally.data.lookback.Lumenize.TimeSeriesCalculator(config);
+        calculator.addSnapshots(snapShotData, startOnISOString, upToDateISOString);
+    
+        //var keys = ['label', 'DefectOpenCount','DefectClosedCount','DefectVerifiedCount'];
+        // var csv = lumenize.arrayOfMaps_To_CSVStyleArray(calculator.getResults().seriesData, keys);
+        // console.log("csv",csv);
+        
+        //console.log(calculator.getResults().seriesData);
+        var hcConfig = [{ name: "label" }, { name : "DefectOpenCount" }, { name : "DefectClosedCount"},{name:"DefectVerifiedCount"}];
+        
+        var hc = lumenize.arrayOfMaps_To_HighChartsSeries(calculator.getResults().seriesData, hcConfig);
+        this._showChart(hc);
+        
+    },
+    _showChart : function(series) {
+        console.log("series",series);        
+        var chart = this.down("#chart1");
+        chart.removeAll();
+        
+        var extChart = Ext.create('Rally.ui.chart.Chart', {
+            width: 800,
+            height: 500,
+         chartData: {
+            categories : series[0].data,
+            series : [
+                series[1],
+                series[2],
+                series[3]
+            ]
+         },
+          chartConfig : {
+                chart: {
+                },
+                title: {
+                text: 'Release Defect Trend',
+                x: -20 //center
+                },                        
+                // subtitle: {
+                //     text: 'Source: WorldClimate.com',
+                //     x: -20
+                // },
+                xAxis: {
+                    tickInterval : 3
+                },
+                yAxis: {
+                    title: {
+                        text: 'Count'
+                    },
+                    plotLines: [{
+                        value: 0,
+                        width: 1,
+                        color: '#808080'
+                    }]
+                },
+                tooltip: {
+                    valueSuffix: '°C'
+                },
+                legend: {
+                            align: 'center',
+                            verticalAlign: 'bottom'
+                }
+            }
+        });
+        
+        chart.add(extChart);
+    }            
 });
 
             

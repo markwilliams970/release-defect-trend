@@ -10,13 +10,14 @@ Ext.define('CustomApp', {
     ,
     {
         xtype: 'container',
-        itemId: 'chart',
+        itemId: 'chart1',
         columnWidth: 1
     }
 
     ],
 
     launch: function() {
+        // add the release dropdown selector
         this.down("#releaseDropDown").add( {
             xtype: 'rallyreleasecombobox',
             itemId : 'releaseSelector',
@@ -25,15 +26,18 @@ Ext.define('CustomApp', {
     	            scope: this
             }
         });
+        // used to save the selected release
         this.gRelease = null;
     },
+    
+    // called when a release is selected.
     _onReleaseSelect : function() {
-        
+        // get and save the selected release        
         var value =  this.down('#releaseSelector').getRecord();
         this.gRelease = value.data;
         console.log("selected release record data",value.raw);
         
-        // get all releases in scope
+        // construct a query to get all releases in scope
         Ext.create('Rally.data.WsapiDataStore', {
             model: "Release",
             autoLoad : true,
@@ -53,7 +57,8 @@ Ext.define('CustomApp', {
             }
         });
     },
-    // called with all releases in scope
+
+// called with all releases in scope
     _onReleases : function(store, data, success) {
         var that = this;
         console.log("data",data);
@@ -84,40 +89,41 @@ Ext.define('CustomApp', {
         });        
     },
     
+    // called with the snapshot data for all defects in the releases
     _onReleaseSnapShotData : function(store,data,success) {
         
+        // we are going to use lumenize and the TimeSeriesCalculator to aggregate the data into 
+        // a time series.
         var lumenize = window.parent.Rally.data.lookback.Lumenize;
         var snapShotData = _.map(data,function(d){return d.data});        
         console.log("snapShotData",snapShotData);
 
+        // these values determine if a defect is open, closed or verified.
         var openValues = ['Submitted','Open'];
         var closedValues = ['Closed','Rejected','Duplicated'];
         var verifiedValues = ['Verified'];
         
+        // can be used to 'knockout' holidays
         var holidays = [
             {year: 2014, month: 1, day: 1}  // Made up holiday to test knockout
         ];
-        
+
+        // metrics to chart
         var metrics = [
             {as: 'DefectOpenCount',     f: 'filteredCount', filterField: 'State', filterValues: openValues},
             {as: 'DefectClosedCount',   f: 'filteredCount', filterField: 'State', filterValues: closedValues},
             {as: 'DefectVerifiedCount', f: 'filteredCount', filterField: 'State', filterValues: verifiedValues},
         ];
-        
+
+        // not used yet
         var summaryMetricsConfig = [
-            // {field: 'TaskUnitScope', f: 'max'},
-            // {field: 'TaskUnitBurnDown', f: 'max'},
-            // {as: 'TaskUnitBurnDown_max_index', f: (seriesData, summaryMetrics) ->
-            // for row, index in seriesData
-            // if row.TaskUnitBurnDown is summaryMetrics.TaskUnitBurnDown_max
-            // return index
-            // }
         ];
         
+        // not used yet
         var deriveFieldsOnInput = [
-            //{as: 'PercentRemaining', f: (row) -> 100 * row.TaskRemainingTotal / row.TaskEstimateTotal }
         ];
-        
+
+        // calculator config
         var config = {
           deriveFieldsOnInput: deriveFieldsOnInput,
           metrics: metrics,
@@ -133,54 +139,47 @@ Ext.define('CustomApp', {
         var startOnISOString = new lumenize.Time(this.gRelease.ReleaseStartDate).getISOStringInTZ(config.tz)
         var upToDateISOString = new lumenize.Time(this.gRelease.ReleaseDate).getISOStringInTZ(config.tz)
         
+        // create the calculator and add snapshots to it.
         calculator = new Rally.data.lookback.Lumenize.TimeSeriesCalculator(config);
         calculator.addSnapshots(snapShotData, startOnISOString, upToDateISOString);
-    
-        var keys = ['label', 'DefectOpenCount','DefectClosedCount','DefectVerifiedCount'];
-        var csv = lumenize.arrayOfMaps_To_CSVStyleArray(calculator.getResults().seriesData, keys);
-        console.log("csv",csv);
-        
-        console.log(calculator.getResults().seriesData);
+
+        // create a high charts series config object, used to get the hc series data
         var hcConfig = [{ name: "label" }, { name : "DefectOpenCount" }, { name : "DefectClosedCount"},{name:"DefectVerifiedCount"}];
-        
         var hc = lumenize.arrayOfMaps_To_HighChartsSeries(calculator.getResults().seriesData, hcConfig);
-        console.log("hc",hc);
-        
-        this._showChart();
+
+        // display the chart
+        this._showChart(hc);
         
     },
-    _showChart : function() {
+    _showChart : function(series) {
+        console.log("series",series);        
+        var chart = this.down("#chart1");
+        chart.removeAll();
         
-       this.down("#chart").add( { xtype : 'rallychart', 
+        var extChart = Ext.create('Rally.ui.chart.Chart', {
+            width: 800,
+            height: 500,
          chartData: {
-            categories: ['January', 'February', 'March', 'April'],
-            series: [
-                {
-                    type: 'column',
-                    data: [1, 2, 3, 6] //calculated elsewhere in app
-                },
-                {
-                    type: 'line',
-                    data: [3, 4, 2, 8] //calculated elsewhere in app
-                }
+            categories : series[0].data,
+            series : [
+                series[1],
+                series[2],
+                series[3]
             ]
          },
           chartConfig : {
+                chart: {
+                },
                 title: {
-                text: 'Monthly Average Temperature',
+                text: 'Release Defect Trend',
                 x: -20 //center
                 },                        
-                subtitle: {
-                    text: 'Source: WorldClimate.com',
-                    x: -20
-                },
                 xAxis: {
-                    categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    tickInterval : 3
                 },
                 yAxis: {
                     title: {
-                        text: 'Temperature (°C)'
+                        text: 'Count'
                     },
                     plotLines: [{
                         value: 0,
@@ -189,125 +188,14 @@ Ext.define('CustomApp', {
                     }]
                 },
                 tooltip: {
-                    valueSuffix: '°C'
+                    valueSuffix: ' Defects'
                 },
                 legend: {
-                    layout: 'vertical',
-                    align: 'right',
-                    verticalAlign: 'middle',
-                    borderWidth: 0
+                            align: 'center',
+                            verticalAlign: 'bottom'
                 }
             }
         });
-        
-        // var chart = this.down("#chart");
-        
-        // console.log("chart id",chart.getEl().id);
-        
-        // var extChart = Ext.create('Rally.ui.chart.Chart', {
-        //  chartData: {
-        //     categories: ['January', 'February', 'March', 'April'],
-        //     series: [
-        //         {
-        //             type: 'column',
-        //             data: [1, 2, 3, 6] //calculated elsewhere in app
-        //         },
-        //         {
-        //             type: 'line',
-        //             data: [3, 4, 2, 8] //calculated elsewhere in app
-        //         }
-        //     ]
-        //  },
-        //   chartConfig : {
-        //         title: {
-        //         text: 'Monthly Average Temperature',
-        //         x: -20 //center
-        //         },                        
-        //         subtitle: {
-        //             text: 'Source: WorldClimate.com',
-        //             x: -20
-        //         },
-        //         xAxis: {
-        //             categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        //                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        //         },
-        //         yAxis: {
-        //             title: {
-        //                 text: 'Temperature (°C)'
-        //             },
-        //             plotLines: [{
-        //                 value: 0,
-        //                 width: 1,
-        //                 color: '#808080'
-        //             }]
-        //         },
-        //         tooltip: {
-        //             valueSuffix: '°C'
-        //         },
-        //         legend: {
-        //             layout: 'vertical',
-        //             align: 'right',
-        //             verticalAlign: 'middle',
-        //             borderWidth: 0
-        //         }
-        //     }
-        // });
-        
-        // chart.add(extChart);
-    }        
-        
-    //     chart.add({ 
-    //         xtype : "rallychart",
-    //         chartConfig : {
-    //             title: {
-    //             text: 'Monthly Average Temperature',
-    //             x: -20 //center
-    //             },                        
-    //             subtitle: {
-    //                 text: 'Source: WorldClimate.com',
-    //                 x: -20
-    //             },
-    //             xAxis: {
-    //                 categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    //                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    //             },
-    //             yAxis: {
-    //                 title: {
-    //                     text: 'Temperature (°C)'
-    //                 },
-    //                 plotLines: [{
-    //                     value: 0,
-    //                     width: 1,
-    //                     color: '#808080'
-    //                 }]
-    //             },
-    //             tooltip: {
-    //                 valueSuffix: '°C'
-    //             },
-    //             legend: {
-    //                 layout: 'vertical',
-    //                 align: 'right',
-    //                 verticalAlign: 'middle',
-    //                 borderWidth: 0
-    //             },
-    //             renderTo : chart.getEl().id
-    //         }
-    //         ,
-    //         chartData : {
-    //         series: [{
-    //             name: 'Tokyo',
-    //             data: [7.0, 6.9, 9.5, 14.5, 18.2, 21.5, 25.2, 26.5, 23.3, 18.3, 13.9, 9.6]
-    //         }, {
-    //             name: 'New York',
-    //             data: [-0.2, 0.8, 5.7, 11.3, 17.0, 22.0, 24.8, 24.1, 20.1, 14.1, 8.6, 2.5]
-    //         }, {
-    //             name: 'Berlin',
-    //             data: [-0.9, 0.6, 3.5, 8.4, 13.5, 17.0, 18.6, 17.9, 14.3, 9.0, 3.9, 1.0]
-    //         }, {
-    //             name: 'London',
-    //             data: [3.9, 4.2, 5.7, 8.5, 11.9, 15.2, 17.0, 16.6, 14.2, 10.3, 6.6, 4.8]
-    //         }]
-    //         }
-    //     });
-    // }   
+        chart.add(extChart);
+    }            
 });

@@ -140,7 +140,8 @@ Ext.define('CustomApp', {
         var upToDateISOString = new lumenize.Time(this.gRelease.ReleaseDate).getISOStringInTZ(config.tz)
         
         // create the calculator and add snapshots to it.
-        calculator = new Rally.data.lookback.Lumenize.TimeSeriesCalculator(config);
+        //calculator = new Rally.data.lookback.Lumenize.TimeSeriesCalculator(config);
+        calculator = new lumenize.TimeSeriesCalculator(config);
         calculator.addSnapshots(snapShotData, startOnISOString, upToDateISOString);
 
         // create a high charts series config object, used to get the hc series data

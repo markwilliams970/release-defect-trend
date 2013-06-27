@@ -5,10 +5,12 @@
 
     <script type="text/javascript" src="/apps/2.0rc1/sdk.js"></script>
 
+
+
     <script type="text/javascript">
         Rally.onReady(function () {
-            Ext.define('CustomApp', {
-                extend: 'Rally.app.App',
+Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
     componentCls: 'app',
     items: [
     {
@@ -26,6 +28,7 @@
     ],
 
     launch: function() {
+        // add the release dropdown selector
         this.down("#releaseDropDown").add( {
             xtype: 'rallyreleasecombobox',
             itemId : 'releaseSelector',
@@ -34,15 +37,18 @@
     	            scope: this
             }
         });
+        // used to save the selected release
         this.gRelease = null;
     },
+    
+    // called when a release is selected.
     _onReleaseSelect : function() {
-        
+        // get and save the selected release        
         var value =  this.down('#releaseSelector').getRecord();
         this.gRelease = value.data;
         console.log("selected release record data",value.raw);
         
-        // get all releases in scope
+        // construct a query to get all releases in scope
         Ext.create('Rally.data.WsapiDataStore', {
             model: "Release",
             autoLoad : true,
@@ -62,7 +68,8 @@
             }
         });
     },
-    // called with all releases in scope
+
+// called with all releases in scope
     _onReleases : function(store, data, success) {
         var that = this;
         console.log("data",data);
@@ -93,40 +100,41 @@
         });        
     },
     
+    // called with the snapshot data for all defects in the releases
     _onReleaseSnapShotData : function(store,data,success) {
         
+        // we are going to use lumenize and the TimeSeriesCalculator to aggregate the data into 
+        // a time series.
         var lumenize = window.parent.Rally.data.lookback.Lumenize;
         var snapShotData = _.map(data,function(d){return d.data});        
         console.log("snapShotData",snapShotData);
 
+        // these values determine if a defect is open, closed or verified.
         var openValues = ['Submitted','Open'];
         var closedValues = ['Closed','Rejected','Duplicated'];
         var verifiedValues = ['Verified'];
         
+        // can be used to 'knockout' holidays
         var holidays = [
             {year: 2014, month: 1, day: 1}  // Made up holiday to test knockout
         ];
-        
+
+        // metrics to chart
         var metrics = [
             {as: 'DefectOpenCount',     f: 'filteredCount', filterField: 'State', filterValues: openValues},
             {as: 'DefectClosedCount',   f: 'filteredCount', filterField: 'State', filterValues: closedValues},
             {as: 'DefectVerifiedCount', f: 'filteredCount', filterField: 'State', filterValues: verifiedValues},
         ];
-        
+
+        // not used yet
         var summaryMetricsConfig = [
-            // {field: 'TaskUnitScope', f: 'max'},
-            // {field: 'TaskUnitBurnDown', f: 'max'},
-            // {as: 'TaskUnitBurnDown_max_index', f: (seriesData, summaryMetrics) ->
-            // for row, index in seriesData
-            // if row.TaskUnitBurnDown is summaryMetrics.TaskUnitBurnDown_max
-            // return index
-            // }
         ];
         
+        // not used yet
         var deriveFieldsOnInput = [
-            //{as: 'PercentRemaining', f: (row) -> 100 * row.TaskRemainingTotal / row.TaskEstimateTotal }
         ];
-        
+
+        // calculator config
         var config = {
           deriveFieldsOnInput: deriveFieldsOnInput,
           metrics: metrics,
@@ -142,17 +150,15 @@
         var startOnISOString = new lumenize.Time(this.gRelease.ReleaseStartDate).getISOStringInTZ(config.tz)
         var upToDateISOString = new lumenize.Time(this.gRelease.ReleaseDate).getISOStringInTZ(config.tz)
         
+        // create the calculator and add snapshots to it.
         calculator = new Rally.data.lookback.Lumenize.TimeSeriesCalculator(config);
         calculator.addSnapshots(snapShotData, startOnISOString, upToDateISOString);
-    
-        //var keys = ['label', 'DefectOpenCount','DefectClosedCount','DefectVerifiedCount'];
-        // var csv = lumenize.arrayOfMaps_To_CSVStyleArray(calculator.getResults().seriesData, keys);
-        // console.log("csv",csv);
-        
-        //console.log(calculator.getResults().seriesData);
+
+        // create a high charts series config object, used to get the hc series data
         var hcConfig = [{ name: "label" }, { name : "DefectOpenCount" }, { name : "DefectClosedCount"},{name:"DefectVerifiedCount"}];
-        
         var hc = lumenize.arrayOfMaps_To_HighChartsSeries(calculator.getResults().seriesData, hcConfig);
+
+        // display the chart
         this._showChart(hc);
         
     },
@@ -179,10 +185,6 @@
                 text: 'Release Defect Trend',
                 x: -20 //center
                 },                        
-                // subtitle: {
-                //     text: 'Source: WorldClimate.com',
-                //     x: -20
-                // },
                 xAxis: {
                     tickInterval : 3
                 },
@@ -197,7 +199,7 @@
                     }]
                 },
                 tooltip: {
-                    valueSuffix: '°C'
+                    valueSuffix: ' Defects'
                 },
                 legend: {
                             align: 'center',
@@ -205,7 +207,6 @@
                 }
             }
         });
-        
         chart.add(extChart);
     }            
 });

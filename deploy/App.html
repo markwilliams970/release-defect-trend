@@ -212,10 +212,11 @@ Ext.define('CustomApp', {
             }
         });
         chart.add(extChart);
-        //extChart.hideMask();
-        //chart.hideMask();
-        
-        //chart.fireEvent('demask');
+        var p = Ext.get(chart.id);
+        var elems = p.query("div.x-mask");
+        _.each(elems, function(e) { e.remove(); });
+        var elems = p.query("div.x-mask-msg");
+        _.each(elems, function(e) { e.remove(); });
     }            
 });
 

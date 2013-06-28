@@ -149,6 +149,7 @@ Ext.define('CustomApp', {
         var hc = lumenize.arrayOfMaps_To_HighChartsSeries(calculator.getResults().seriesData, hcConfig);
 
         // display the chart
+        
         this._showChart(hc);
         
     },
@@ -200,6 +201,9 @@ Ext.define('CustomApp', {
             }
         });
         chart.add(extChart);
+        //extChart.hideMask();
+        //chart.hideMask();
+        
         //chart.fireEvent('demask');
     }            
 });

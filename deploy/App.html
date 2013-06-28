@@ -168,6 +168,8 @@ Ext.define('CustomApp', {
         var chart = this.down("#chart1");
         chart.removeAll();
         
+        series[1].data = _.map(series[1].data, function(d) { return _.isNull(d) ? 0 : d; });
+        
         var extChart = Ext.create('Rally.ui.chart.Chart', {
             width: 800,
             height: 500,
@@ -209,6 +211,7 @@ Ext.define('CustomApp', {
             }
         });
         chart.add(extChart);
+        //chart.fireEvent('demask');
     }            
 });
 

@@ -33,6 +33,7 @@ Ext.define('CustomApp', {
     _onReleaseSelect : function() {
         // get and save the selected release        
         var value =  this.down('#releaseSelector').getRecord();
+        console.log("record",value);
         this.gRelease = value.data;
         console.log("selected release record data",value.raw);
         
@@ -63,15 +64,18 @@ Ext.define('CustomApp', {
         console.log("data",data);
         
         var releaseIds = _.map(data, function(d) { return d.data.ObjectID; });
+        
+        that.gReleaseIds = releaseIds;
         console.log("Release IDs",releaseIds);
         // now we are going to retrieve snapshots for all releases ...
         Ext.create('Rally.data.lookback.SnapshotStore', {
             autoLoad : true,
             listeners: {
-                load: this._onReleaseSnapShotData,
+                //load: this._onReleaseSnapShotData,
+                load: this._filterOutMovedDefects,
                 scope : this
             },
-            fetch: ['ObjectID','Name', 'State', '_ValidFrom','_ValidTo'],
+            fetch: ['ObjectID','Name', 'Priority','State', '_ValidFrom','_ValidTo'],
             hydrate: ['State'],
             filters: [
                 {
@@ -86,15 +90,52 @@ Ext.define('CustomApp', {
                 }
             ]
         });        
-    },
+    }
+    
+    ,
+    _filterOutMovedDefects : function( store, data, success) {
+        
+        var that = this;
+        var releaseIds = that.gReleaseIds;
+        that.gSnapShotData = _.map(data,function(d){return d.data});
+        console.log("Release IDs",releaseIds);
+        // now we are going to retrieve snapshots for all releases ...
+        Ext.create('Rally.data.lookback.SnapshotStore', {
+            autoLoad : true,
+            listeners: {
+                load: this._onReleaseSnapShotData,
+                scope : this
+            },
+            fetch: ['ObjectID','Name', 'Priority','State', '_ValidFrom','_ValidTo'],
+            hydrate: ['State'],
+            filters: [
+                {
+                    property: '_TypeHierarchy',
+                    operator: 'in',
+                    value: ['Defect']
+                },
+                {
+                    property: '_PreviousValues.Release',
+                    operator: 'in',
+                    value: releaseIds
+                }
+            ]
+        });        
+    }
+    ,
     
     // called with the snapshot data for all defects in the releases
     _onReleaseSnapShotData : function(store,data,success) {
-        
         // we are going to use lumenize and the TimeSeriesCalculator to aggregate the data into 
         // a time series.
+        var that = this;
         var lumenize = window.parent.Rally.data.lookback.Lumenize;
         var snapShotData = _.map(data,function(d){return d.data});        
+        
+        var filteredSnapShotData = _.filter( that.gSnapShotData, function(e) { 
+           return !_.find(snapShotData, function(e2) { return e["ObjectID"] == e2["ObjectID"]; });
+        });
+        
         console.log("snapShotData",snapShotData);
 
         // these values determine if a defect is open, closed or verified.
@@ -120,8 +161,9 @@ Ext.define('CustomApp', {
         
         // not used yet
         var deriveFieldsOnInput = [
-        ];
-
+            {as: 'HighPriority', f: function(row) { return row["Priority"] == "High"; } }
+        ]
+        
         // calculator config
         var config = {
           deriveFieldsOnInput: deriveFieldsOnInput,
@@ -141,7 +183,7 @@ Ext.define('CustomApp', {
         // create the calculator and add snapshots to it.
         //calculator = new Rally.data.lookback.Lumenize.TimeSeriesCalculator(config);
         calculator = new lumenize.TimeSeriesCalculator(config);
-        calculator.addSnapshots(snapShotData, startOnISOString, upToDateISOString);
+        calculator.addSnapshots(filteredSnapShotData, startOnISOString, upToDateISOString);
 
         // create a high charts series config object, used to get the hc series data
         var hcConfig = [{ name: "label" }, { name : "DefectOpenCount" }, { name : "DefectClosedCount"},{name:"DefectVerifiedCount"}];

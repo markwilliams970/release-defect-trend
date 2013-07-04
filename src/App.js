@@ -22,7 +22,7 @@ Ext.define('CustomApp', {
             itemId : 'releaseSelector',
             listeners: {
                     select: this._onReleaseSelect,
-    	            scope: this
+                    scope: this
             }
         });
         // used to save the selected release

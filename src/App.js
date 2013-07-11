@@ -7,6 +7,7 @@ Ext.define('CustomApp', {
         itemId: 'releaseDropDown',
         columnWidth: 1
     }
+    
     ,
     {
         xtype: 'container',
@@ -97,7 +98,9 @@ Ext.define('CustomApp', {
         // a time series.
         var that = this;
         var lumenize = window.parent.Rally.data.lookback.Lumenize;
-        var snapShotData = _.map(data,function(d){return d.data});        
+        var snapShotData = _.map(data,function(d){return d.data});      
+        
+        // console.log("snapshot data:",data);
 
         // these values determine if a defect is open, closed or verified.
         var openValues = ['Submitted','Open'];
@@ -120,17 +123,37 @@ Ext.define('CustomApp', {
         var summaryMetricsConfig = [
         ];
         
+        var derivedFieldsAfterSummary = [
+            {   as: 'Cumulative', 
+                f : function (row,index,summaryMetrics, seriesData) {
+                    // console.log("row",           row);
+                    // console.log("index",         index);
+                    // console.log("summaryMetrics",summaryMetrics);
+                    // console.log("seriesData",    seriesData);
+                    return 0;
+                }
+            }
+        ];
+  // {as: 'Ideal', f: (row, index, summaryMetrics, seriesData) ->
+  //   max = summaryMetrics.TaskUnitScope_max
+  //   increments = seriesData.length - 1
+  //   incrementAmount = max / increments
+  //   return Math.floor(100 * (max - index * incrementAmount)) / 100
+  // },
+        
         // not used yet
         var deriveFieldsOnInput = [
             {as: 'HighPriority', f: function(row) { return row["Priority"] == "High"; } }
         ]
+        
+        // small change
         
         // calculator config
         var config = {
           deriveFieldsOnInput: deriveFieldsOnInput,
           metrics: metrics,
           summaryMetricsConfig: summaryMetricsConfig,
-          deriveFieldsAfterSummary: [],
+          deriveFieldsAfterSummary: derivedFieldsAfterSummary,
           granularity: lumenize.Time.DAY,
           tz: 'America/Chicago',
           holidays: holidays,
@@ -177,7 +200,7 @@ Ext.define('CustomApp', {
                 chart: {
                 },
                 title: {
-                text: 'Release Defect Trend (Testing)?',
+                text: 'Release Defect Trend',
                 x: -20 //center
                 },                        
                 xAxis: {

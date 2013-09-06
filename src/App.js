@@ -23,6 +23,7 @@ Ext.define('CustomApp', {
             itemId : 'releaseSelector',
             listeners: {
                     select: this._onReleaseSelect,
+                    ready:  this._onReleaseSelect,
     	            scope: this
             }
         });
@@ -34,6 +35,8 @@ Ext.define('CustomApp', {
     _onReleaseSelect : function() {
         // get and save the selected release        
         var value =  this.down('#releaseSelector').getRecord();
+        var query = this.down('#releaseSelector').getQueryFromSelected();
+        console.log("query",query);
         console.log("record",value);
         this.gRelease = value.data;
         console.log("selected release record data",value.raw);
@@ -44,6 +47,7 @@ Ext.define('CustomApp', {
             autoLoad : true,
             fetch: ["ObjectID","Name","ReleaseStartDate","ReleaseDate","Project"],
             filters: [
+                //query
                 {
                     property: 'Name',
                     value: value.data.Name

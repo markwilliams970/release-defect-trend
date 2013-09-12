@@ -36,10 +36,10 @@ Ext.define('CustomApp', {
         // get and save the selected release        
         var value =  this.down('#releaseSelector').getRecord();
         var query = this.down('#releaseSelector').getQueryFromSelected();
-        console.log("query",query);
-        console.log("record",value);
+        // console.log("query",query);
+        // console.log("record",value);
         this.gRelease = value.data;
-        console.log("selected release record data",value.raw);
+        // console.log("selected release record data",value.raw);
         
         // construct a query to get all releases in scope
         Ext.create('Rally.data.WsapiDataStore', {
@@ -66,11 +66,11 @@ Ext.define('CustomApp', {
 // called with all releases in scope
     _onReleases : function(store, data, success) {
         var that = this;
-        console.log("data",data);
+        // console.log("data",data);
         
         var releaseIds = _.map(data, function(d) { return d.data.ObjectID; });
         that.gReleaseIds = releaseIds;
-        console.log("Release IDs",releaseIds);
+        // console.log("Release IDs",releaseIds);
         // now we are going to retrieve snapshots for all releases ...
         Ext.create('Rally.data.lookback.SnapshotStore', {
             autoLoad : true,
@@ -130,21 +130,11 @@ Ext.define('CustomApp', {
         var derivedFieldsAfterSummary = [
             {   as: 'Cumulative', 
                 f : function (row,index,summaryMetrics, seriesData) {
-                    // console.log("row",           row);
-                    // console.log("index",         index);
-                    // console.log("summaryMetrics",summaryMetrics);
-                    // console.log("seriesData",    seriesData);
                     return 0;
                 }
             }
         ];
-  // {as: 'Ideal', f: (row, index, summaryMetrics, seriesData) ->
-  //   max = summaryMetrics.TaskUnitScope_max
-  //   increments = seriesData.length - 1
-  //   incrementAmount = max / increments
-  //   return Math.floor(100 * (max - index * incrementAmount)) / 100
-  // },
-        
+
         // not used yet
         var deriveFieldsOnInput = [
             {as: 'HighPriority', f: function(row) { return row["Priority"] == "High"; } }
@@ -183,7 +173,7 @@ Ext.define('CustomApp', {
         
     },
     _showChart : function(series) {
-        console.log("series",series);        
+        // console.log("series",series);        
         var chart = this.down("#chart1");
         chart.removeAll();
         

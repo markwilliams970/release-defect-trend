@@ -1,16 +1,16 @@
 {
-    "name": "release-defect-trend",
-    "className": "CustomApp",
-    "server": "https://rally1.rallydev.com",
-    "sdk": "2.0rc1",
-    "remote_javascript": [
-    ],
-    "javascript": [
-        "src/App.js"
-    ],
-    "remote_css": [
-    ],
-    "css": [
-        "styles/app.css"
-    ]
+   "name": "release-defect-trend",
+   "className": "CustomApp",
+   "server": "https://rally1.rallydev.com",
+   "sdk": "2.0rc3",
+   "remote_javascript": [],
+   "javascript": [
+      "src/App.js",
+      "https://rally1.rallydev.com/apps/2.0rc3/lib/analytics/analytics-all.js",
+      "src/moment.min.js"
+   ],
+   "remote_css": [],
+   "css": [
+      "styles/app.css"
+   ]
 }

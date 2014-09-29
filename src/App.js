@@ -248,7 +248,7 @@ Ext.define('CustomApp', {
                 },                        
                 subtitle : { text: "Closed States : ["+  app.getSetting("closedStates") + "]"},
                 xAxis: {
-                    // tickInterval : 2,
+                    tickInterval : 2,
                     labels : {
                         formatter : function() {
                             // console.log(this.value);

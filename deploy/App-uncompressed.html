@@ -8,58 +8,89 @@
 
     <script type="text/javascript">
         Rally.onReady(function () {
-                var app = null;
-
-Ext.define('CustomApp', {
+                Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
     items: [
-        {
-            xtype: 'container',
-            itemId: 'releaseDropDown',
-            columnWidth: 1
-        }
-        ,
-        {
-            xtype: 'container',
-            itemId: 'chart1',
-            columnWidth: 1
-        }    
-    ],
-
+    {
+        xtype: 'container',
+        itemId: 'releaseDropDown',
+        columnWidth: 1
+    }
+    
+    ,
+    {
+        xtype: 'container',
+        itemId: 'chart1',
+        columnWidth: 1
+    }    
+    ]
+    ,
     launch: function() {
         // add the release dropdown selector
-        var that = this;
-        app = this;
-        this.endDate = new moment().toISOString();
-        this.startDate = new moment().subtract(30,'days').toISOString();
-
-        Rally.data.ModelFactory.getModel({
-            type: 'Defect',
-            success: function(model) {
-                //Use the defect model here
-                console.log("model",model.getField("State").getAllowedValueStore().load(function(data){
-                    that.stateValues = _.map(data,function(d){
-                        return d.get("StringValue");
-                    });
-                    console.log(that.stateValues);
-                    that.loadSnapshots(that);
-                }));
+        this.down("#releaseDropDown").add( {
+            xtype: 'rallyreleasecombobox',
+            itemId : 'releaseSelector',
+            listeners: {
+                    select: this._onReleaseSelect,
+                    ready:  this._onReleaseSelect,
+                    scope: this
+            }
+        });
+        // used to save the selected release
+        this.gRelease = null;
+    },
+    
+    // called when a release is selected.
+    _onReleaseSelect : function() {
+        // get and save the selected release        
+        var value =  this.down('#releaseSelector').getRecord();
+        var query = this.down('#releaseSelector').getQueryFromSelected();
+        // console.log("query",query);
+        // console.log("record",value);
+        this.gRelease = value.data;
+        // console.log("selected release record data",value.raw);
+        
+        // construct a query to get all releases in scope
+        Ext.create('Rally.data.WsapiDataStore', {
+            model: "Release",
+            autoLoad : true,
+            fetch: ["ObjectID","Name","ReleaseStartDate","ReleaseDate","Project"],
+            filters: [
+                //query
+                {
+                    property: 'Name',
+                    value: value.data.Name
+                }
+            ],
+            listeners: {
+                // load: function(store, data, success) {
+                //     console.log("data",data);
+                // }
+                scope : this,
+                load : this._onReleases
             }
         });
     },
 
-    loadSnapshots : function(that) {
-
-        var store = Ext.create('Rally.data.lookback.SnapshotStore', {
-            autoLoad : false,
-            limit : 'infinity',
+// called with all releases in scope
+    _onReleases : function(store, data, success) {
+        var that = this;
+        // console.log("data",data);
+        
+        var releaseIds = _.map(data, function(d) { return d.data.ObjectID; });
+        that.gReleaseIds = releaseIds;
+        // console.log("Release IDs",releaseIds);
+        // now we are going to retrieve snapshots for all releases ...
+        Ext.create('Rally.data.lookback.SnapshotStore', {
+            autoLoad : true,
             listeners: {
                 load: this._onReleaseSnapShotData,
+                //load: this._filterOutMovedDefects,
                 scope : this
             },
-            fetch: ['ObjectID','Name', 'Priority','State', '_ValidFrom','_ValidTo', '_PreviousValues', '_PreviousValues.State'],
-            hydrate: ['State','_PreviousValues.State'],
+            fetch: ['ObjectID','Name', 'Priority','State', '_ValidFrom','_ValidTo'],
+            hydrate: ['State'],
             filters: [
                 {
                     property: '_TypeHierarchy',
@@ -67,63 +98,28 @@ Ext.define('CustomApp', {
                     value: ['Defect']
                 },
                 {
-                    property: '_ProjectHierarchy',
+                    property: 'Release',
                     operator: 'in',
-                    value: [this.getContext().getProject().ObjectID]
-                },
-                {
-                    property: '_ValidTo',
-                    operator: '>',
-                    value : that.startDate
+                    value: releaseIds
                 }
             ]
-        });
-
-        store.load({
-            params: {
-                compress: true,
-                removeUnauthorizedSnapshots: true
-            }
-        });   
-
-    },
-
-     // switch to app configuration from ui selection
-    config: {
-        defaultSettings : {
-            closedStates : "Closed,Cancelled,Duplicate"
-        }
-    },
-
-    getSettingsFields: function() {
-        return [
-            {
-                name: 'closedStates',
-                xtype: 'rallytextfield',
-                label : "Set of Defect closed states (comma seperated)"
-            }
-        ];
-    },
-
-
+        });        
+    }
+   , 
     // called with the snapshot data for all defects in the releases
     _onReleaseSnapShotData : function(store,data,success) {
-        console.log("snapshots",data.length);
         // we are going to use lumenize and the TimeSeriesCalculator to aggregate the data into 
         // a time series.
         var that = this;
-
         var lumenize = window.parent.Rally.data.lookback.Lumenize;
-        // var lumenize = Ext.create("Rally.data.lookback.Lumenize.TimeSeriesCalculator",{});
         var snapShotData = _.map(data,function(d){return d.data});      
         
         // console.log("snapshot data:",data);
 
         // these values determine if a defect is open, closed or verified.
-        var closedValues = that.getSetting("closedStates").split(',');
-        var openValues = _.difference( app.stateValues, closedValues);
-        console.log("Closed",closedValues);
-        console.log("Open",openValues);
+        var openValues = ['Submitted','Open'];
+        var closedValues = ['Closed','Rejected','Duplicated'];
+        var verifiedValues = ['Verified'];
         
         // can be used to 'knockout' holidays
         var holidays = [
@@ -132,67 +128,26 @@ Ext.define('CustomApp', {
 
         // metrics to chart
         var metrics = [
-            {as: 'DefectActiveCount',     f: 'filteredCount', filterField: 'State', filterValues: openValues},
-            {as: 'DefectClosedCount',   f: 'filteredCount', filterField: 'State', filterValues: closedValues}
+            {as: 'DefectOpenCount',     f: 'filteredCount', filterField: 'State', filterValues: openValues},
+            {as: 'DefectClosedCount',   f: 'filteredCount', filterField: 'State', filterValues: closedValues},
+            {as: 'DefectVerifiedCount', f: 'filteredCount', filterField: 'State', filterValues: verifiedValues},
         ];
 
         // not used yet
         var summaryMetricsConfig = [
         ];
-
-        var isOpenSnapshot = function(snapshot) {
-            // console.log(snapshot.get("_PreviousValues"));
-            return _.contains(openValues, (snapshot.get("State"))) && 
-                snapshot.get("State") !== snapshot.get("_PreviousValues")["State"];
-        };
-
-        var isClosedSnapshot = function(snapshot) {
-            return _.contains(closedValues, (snapshot.get("State")));
-        };
-
-        var snapshotsForDay = function(snapshots,day) {
-            return _.filter(snapshots,function(s) {
-                var snapDate = s.get("_ValidFrom").substring(0,10);
-                return ( moment(day).isSame( moment(snapDate), 'day'))
-            });
-        };
-
-        var countStateSnapshots = function( snapshots, stateFunction ) {
-            return _.reduce( snapshots, function( memo, s) {
-                return memo + ( stateFunction(s) ? 1 : 0 );
-            },0 );
-        };
-
+        
         var derivedFieldsAfterSummary = [
-            {   as: 'Opened', 
+            {   as: 'Cumulative', 
                 f : function (row,index,summaryMetrics, seriesData) {
-                    if (index===0)
-                        console.log("seriesData",seriesData);
-                    if (index>0) {
-                        var val = seriesData[index-1].Opened + (seriesData[index].DefectActiveCount - seriesData[index-1].DefectActiveCount);
-                        return val > seriesData[index-1].Opened ? val : seriesData[index-1].Opened ;
-                    }
-                    else
-                        return 0;
+                    return 0;
                 }
-            } ,            
-            {   as: 'Closed', 
-                f : function (row,index,summaryMetrics, seriesData) {
-                    if (index===0)
-                        console.log("seriesData",seriesData);
-                    if (index>0) {
-                        var val = seriesData[index-1].Closed + (seriesData[index].DefectClosedCount - seriesData[index-1].DefectClosedCount);
-                        return val > seriesData[index-1].Closed ? val : seriesData[index-1].Closed ;
-                    }
-                    else
-                        return 0;
-                }
-            } ,            
+            }
         ];
 
         // not used yet
         var deriveFieldsOnInput = [
-            // {as: 'HighPriority', f: function(row) { return row["Priority"] == "High"; } }
+            {as: 'HighPriority', f: function(row) { return row["Priority"] == "High"; } }
         ]
         
         // small change
@@ -204,28 +159,25 @@ Ext.define('CustomApp', {
           summaryMetricsConfig: summaryMetricsConfig,
           deriveFieldsAfterSummary: derivedFieldsAfterSummary,
           granularity: lumenize.Time.DAY,
-          tz: 'America/New_York',
+          tz: 'America/Chicago',
           holidays: holidays,
           workDays: 'Monday,Tuesday,Wednesday,Thursday,Friday'
         };
         
-        var startOnISOString = new lumenize.Time(that.startDate.substring(0,that.startDate.length-1)).getISOStringInTZ(config.tz)
-        var upToDateISOString = new lumenize.Time(this.endDate.substring(0,that.endDate.length-1)).getISOStringInTZ(config.tz)
+        // release start and end dates
+        var startOnISOString = new lumenize.Time(this.gRelease.ReleaseStartDate).getISOStringInTZ(config.tz)
+        var upToDateISOString = new lumenize.Time(this.gRelease.ReleaseDate).getISOStringInTZ(config.tz)
         
+        // create the calculator and add snapshots to it.
+        //calculator = new Rally.data.lookback.Lumenize.TimeSeriesCalculator(config);
         calculator = new lumenize.TimeSeriesCalculator(config);
         calculator.addSnapshots(snapShotData, startOnISOString, upToDateISOString);
 
         // create a high charts series config object, used to get the hc series data
-        var hcConfig = [ { name: "label" }, 
-                         { name : "DefectActiveCount" }, 
-                         { name : "DefectClosedCount"},
-                         { name : "Opened"},
-                         { name : "Closed"}
-                    ];
+        var hcConfig = [{ name: "label" }, { name : "DefectOpenCount" }, { name : "DefectClosedCount"},{name:"DefectVerifiedCount"}];
         var hc = lumenize.arrayOfMaps_To_HighChartsSeries(calculator.getResults().seriesData, hcConfig);
 
         // display the chart
-        console.log("hc",hc);
         
         this._showChart(hc);
         
@@ -234,37 +186,31 @@ Ext.define('CustomApp', {
         // console.log("series",series);        
         var chart = this.down("#chart1");
         chart.removeAll();
+
+        console.log("series",series);
         
         series[1].data = _.map(series[1].data, function(d) { return _.isNull(d) ? 0 : d; });
         
         var extChart = Ext.create('Rally.ui.chart.Chart', {
             width: 800,
             height: 500,
-            chartColors : ["Black","Green","Red"],
          chartData: {
             categories : series[0].data,
             series : [
                 series[1],
-                series[3],
-                series[4],
+                series[2],
+                series[3]
             ]
          },
           chartConfig : {
                 chart: {
                 },
                 title: {
-                    text: 'Release Defect Trend',
-                    x: -20 //center
+                text: 'Release Defect Trend',
+                x: -20 //center
                 },                        
-                subtitle : { text: "Closed States : ["+  app.getSetting("closedStates") + "]"},
                 xAxis: {
-                    tickInterval : 2,
-                    labels : {
-                        formatter : function() {
-                            // console.log(this.value);
-                            return this.value.substring(5,7) + "/" + this.value.substring(8,10)
-                        }
-                    }
+                    tickInterval : 3
                 },
                 yAxis: {
                     title: {
@@ -293,7 +239,6 @@ Ext.define('CustomApp', {
         _.each(elems, function(e) { e.remove(); });
     }            
 });
-
                 //! moment.js
 //! version : 2.8.3
 //! authors : Tim Wood, Iskren Chernev, Moment.js contributors
